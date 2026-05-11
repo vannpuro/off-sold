@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Property Intelligence Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  --sold: #ff4444;
+  --sold-soft: rgba(255,68,68,0.18);
+  --off: #3b82f6;
+  --off-soft: rgba(59,130,246,0.18);
+  --bg: #0b0e16;
+  --panel: #131720;
+  --panel2: #181d2b;
+  --border: #252d40;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --accent: #f59e0b;
+  --green: #10b981;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px}
+
+/* HEADER */
+#header{
+  height:60px;background:var(--panel);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0;
+  position:relative;z-index:900;
+}
+#logo{
+  font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;
+  color:var(--accent);white-space:nowrap;letter-spacing:-0.01em;margin-right:4px;
+}
+select.hdr-sel{
+  background:var(--panel2);border:1px solid var(--border);color:var(--text);
+  font-family:'DM Mono',monospace;font-size:0.82rem;
+  padding:5px 26px 5px 10px;border-radius:7px;cursor:pointer;
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center;
+  transition:border-color .2s;min-width:210px;
+}
+select.hdr-sel:hover,select.hdr-sel:focus{border-color:var(--accent);outline:none}
+.vsep{width:1px;height:22px;background:var(--border);flex-shrink:0}
+.pill{
+  display:flex;align-items:center;gap:6px;padding:4px 11px;border-radius:20px;
+  border:1px solid var(--border);font-size:0.78rem;color:var(--text);
+  cursor:pointer;user-select:none;transition:all .2s;white-space:nowrap;flex-shrink:0;
+}
+.pill:hover{border-color:var(--muted)}
+.pill.dim{opacity:0.35}
+.pip{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.pip.sold{background:var(--sold);box-shadow:0 0 6px rgba(255,68,68,.5)}
+.pip.off{background:var(--off);box-shadow:0 0 6px rgba(59,130,246,.5)}
+.hdr-stats{margin-left:auto;display:flex;gap:14px;font-size:0.78rem;color:var(--muted);white-space:nowrap}
+.hdr-stats strong{color:var(--text)}
+
+/* SHEET BAR */
+#gs-bar{
+  height:34px;background:#0d1520;border-bottom:1px solid #1a2540;
+  display:flex;align-items:center;padding:0 14px;gap:8px;font-size:0.65rem;
+  color:var(--muted);flex-shrink:0;
+}
+#gs-input{
+  flex:1;max-width:460px;background:var(--panel);border:1px solid var(--border);
+  color:var(--text);font-family:'DM Mono',monospace;font-size:0.64rem;
+  padding:3px 8px;border-radius:5px;
+}
+#gs-input:focus{outline:none;border-color:var(--green)}
+#btn-load{
+  background:var(--green);color:#000;border:none;font-family:'DM Mono',monospace;
+  font-size:0.64rem;font-weight:600;padding:4px 11px;border-radius:5px;
+  cursor:pointer;white-space:nowrap;transition:opacity .2s;flex-shrink:0;
+}
+#btn-load:hover{opacity:.85}
+#btn-load:disabled{opacity:.4;cursor:default}
+#gs-status{font-size:0.62rem;color:var(--green);white-space:nowrap}
+
+/* FILTER BAR */
+#filter-bar{
+  height:50px;background:var(--panel2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 14px;gap:8px;flex-shrink:0;
+  overflow-x:auto;scrollbar-width:none;
+}
+#filter-bar::-webkit-scrollbar{display:none}
+.flabel{font-size:0.72rem;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;flex-shrink:0}
+select.fsel{
+  background:var(--panel);border:1px solid var(--border);color:var(--text);
+  font-family:'DM Mono',monospace;font-size:0.76rem;
+  padding:5px 22px 5px 9px;border-radius:6px;cursor:pointer;
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 5px center;
+  transition:border-color .2s;flex-shrink:0;
+}
+select.fsel:hover,select.fsel:focus{border-color:var(--green);outline:none}
+.fsep{width:1px;height:18px;background:var(--border);flex-shrink:0;margin:0 2px}
+#btn-reset{
+  margin-left:auto;background:transparent;border:1px solid var(--border);
+  color:var(--muted);font-family:'DM Mono',monospace;font-size:0.74rem;
+  padding:5px 12px;border-radius:6px;cursor:pointer;flex-shrink:0;
+  transition:all .2s;white-space:nowrap;
+}
+#btn-reset:hover{border-color:var(--sold);color:var(--text)}
+
+/* MAP */
+#map-wrap{position:relative;flex:1;overflow:hidden}
+#map{width:100%;height:100%}
+body{display:flex;flex-direction:column}
+.leaflet-tile-pane{filter:brightness(.62) saturate(.45) hue-rotate(198deg)}
+
+/* PRICE LABEL */
+.price-label{background:transparent!important;border:none!important;box-shadow:none!important}
+.price-label div{
+  font-family:'DM Mono',monospace;
+  font-size:12.5px;
+  font-weight:600;
+  color:#ffffff;
+  text-shadow:
+    0 0 3px #000,
+    0 0 6px #000,
+    1px 1px 0 #000,
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000;
+  white-space:nowrap;
+  pointer-events:none;
+  line-height:1;
+  letter-spacing:0.01em;
+}
+
+/* POPUP */
+.leaflet-popup-content-wrapper{
+  background:var(--panel)!important;border:1px solid var(--border)!important;
+  border-radius:10px!important;box-shadow:0 8px 40px rgba(0,0,0,.75)!important;
+  padding:0!important;overflow:hidden;
+}
+.leaflet-popup-content{margin:0!important;min-width:240px}
+.leaflet-popup-tip-container{display:none}
+.pu{padding:14px 16px}
+.pu-badge{font-size:0.58rem;letter-spacing:.12em;text-transform:uppercase;font-weight:500;margin-bottom:5px}
+.pu-badge.sold{color:var(--sold)}
+.pu-badge.off{color:var(--off)}
+.pu-addr{font-family:'Playfair Display',serif;font-size:0.85rem;line-height:1.4;color:var(--text);margin-bottom:9px}
+.pu-price{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;color:var(--accent);margin-bottom:8px}
+.pu-meta{display:flex;gap:8px;flex-wrap:wrap;font-size:0.67rem;color:var(--muted);border-top:1px solid var(--border);padding-top:8px}
+.pu-date{font-size:0.62rem;color:var(--muted);margin-top:6px}
+
+/* SETUP GUIDE */
+#setup-guide{
+  display:none;position:absolute;top:12px;right:12px;
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:16px 18px;max-width:310px;z-index:1000;font-size:0.67rem;
+  line-height:1.65;box-shadow:0 8px 32px rgba(0,0,0,.6);
+}
+#setup-guide h3{color:var(--accent);font-family:'Playfair Display',serif;margin-bottom:8px;font-size:.95rem}
+#setup-guide ol{padding-left:16px;color:var(--muted)}
+#setup-guide li{margin-bottom:4px}
+#setup-guide code{color:var(--green);background:rgba(16,185,129,.1);padding:1px 4px;border-radius:3px;font-size:.62rem}
+#btn-close-guide{position:absolute;top:10px;right:10px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.95rem}
+#btn-help{background:transparent;border:1px solid var(--border);color:var(--muted);font-size:.62rem;padding:3px 8px;border-radius:5px;cursor:pointer;font-family:'DM Mono',monospace;white-space:nowrap;flex-shrink:0}
+#btn-help:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ZOOM HINT */
+#zoom-hint{
+  position:absolute;bottom:28px;left:50%;transform:translateX(-50%);
+  background:var(--panel);border:1px solid var(--border);border-radius:20px;
+  padding:6px 14px;font-size:0.62rem;color:var(--muted);z-index:500;
+  pointer-events:none;transition:opacity .4s;white-space:nowrap;
+}
+
+.leaflet-control-zoom a{background:var(--panel)!important;color:var(--text)!important;border-color:var(--border)!important}
+.leaflet-control-zoom a:hover{background:var(--panel2)!important}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="logo">PropMap</div>
+  <div class="vsep"></div>
+  <select id="suburb-select" class="hdr-sel" onchange="onSuburbChange()">
+    <option value="">All Suburbs</option>
+  </select>
+  <div class="vsep"></div>
+  <div class="pill" id="pill-sold" onclick="toggleLayer('sold')">
+    <div class="pip sold"></div>Sold
+  </div>
+  <div class="pill" id="pill-off" onclick="toggleLayer('off')">
+    <div class="pip off"></div>Off Market
+  </div>
+  <div class="hdr-stats">
+    <span>🔴 <strong id="cnt-sold">0</strong></span>
+    <span>🔵 <strong id="cnt-off">0</strong></span>
+    <span>Showing <strong id="cnt-vis">0</strong></span>
+  </div>
+</div>
+
+<div id="gs-bar">
+  <span>📊</span>
+  <input id="gs-input" type="text" placeholder="Paste published Google Sheet CSV URL…"
+    value="https://docs.google.com/spreadsheets/d/e/2PACX-1vRexwusHhRILvXo2MMVSheIDaG-RNAtKhCNvgIGosm3nqCpLvt2mx3nSYF_a4XUXSU4RjvAsTypUCaI/pub?output=csv"/>
+  <button id="btn-load" onclick="loadSheet()">↻ Reload Sheet</button>
+  <span id="gs-status"></span>
+  <button id="btn-help" onclick="document.getElementById('setup-guide').style.display='block'">? Setup</button>
+</div>
+
+<div id="filter-bar">
+  <span class="flabel">Filter</span>
+  <span class="flabel" style="margin-left:4px">Beds</span>
+  <select class="fsel" id="f-beds" onchange="applyFilters()">
+    <option value="">Any</option>
+    <option value="1">1+</option><option value="2">2+</option>
+    <option value="3">3+</option><option value="4">4+</option><option value="5">5+</option>
+  </select>
+  <div class="fsep"></div>
+  <span class="flabel">Baths</span>
+  <select class="fsel" id="f-baths" onchange="applyFilters()">
+    <option value="">Any</option>
+    <option value="1">1+</option><option value="2">2+</option><option value="3">3+</option>
+  </select>
+  <div class="fsep"></div>
+  <span class="flabel">Garage</span>
+  <select class="fsel" id="f-cars" onchange="applyFilters()">
+    <option value="">Any</option>
+    <option value="1">1+</option><option value="2">2+</option><option value="3">3+</option>
+  </select>
+  <div class="fsep"></div>
+  <span class="flabel">Min $</span>
+  <select class="fsel" id="f-min" onchange="applyFilters()">
+    <option value="">Any</option>
+    <option value="300000">$300k</option><option value="400000">$400k</option>
+    <option value="500000">$500k</option><option value="600000">$600k</option>
+    <option value="700000">$700k</option>
+  </select>
+  <div class="fsep"></div>
+  <span class="flabel">Max $</span>
+  <select class="fsel" id="f-max" onchange="applyFilters()">
+    <option value="">Any</option>
+    <option value="400000">$400k</option><option value="500000">$500k</option>
+    <option value="600000">$600k</option><option value="700000">$700k</option>
+    <option value="800000">$800k</option>
+  </select>
+  <div class="fsep"></div>
+  <span class="flabel">Type</span>
+  <select class="fsel" id="f-type" onchange="applyFilters()">
+    <option value="">All</option>
+    <option value="sold">Sold only</option>
+    <option value="off_market">Off Market only</option>
+  </select>
+  <button id="btn-reset" onclick="resetFilters()">✕ Reset</button>
+</div>
+
+<div id="map-wrap">
+  <div id="map"></div>
+  <div id="zoom-hint">🔍 Zoom in to see price labels on each pin</div>
+  <div id="setup-guide">
+    <button id="btn-close-guide" onclick="this.parentElement.style.display='none'">✕</button>
+    <h3>Google Sheet Setup</h3>
+    <ol>
+      <li>Your sheet columns:<br>
+        <code>Address, Suburb, latitude, longitude, Price, Beds, Baths, Cars, Land Size m2, Property Type, Sold Date, Status</code>
+      </li>
+      <li>Status: <code>Sold</code> or <code>Off-market</code></li>
+      <li>File → Share → <b>Publish to web</b> → CSV</li>
+      <li>Paste URL above → click <b>Reload Sheet</b></li>
+    </ol>
+    <div style="margin-top:9px;color:var(--muted);font-size:.61rem">
+      💡 Having <code>latitude</code> &amp; <code>longitude</code> columns means all pins load instantly — no geocoding!
+    </div>
+  </div>
+</div>
+
+<script>
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRexwusHhRILvXo2MMVSheIDaG-RNAtKhCNvgIGosm3nqCpLvt2mx3nSYF_a4XUXSU4RjvAsTypUCaI/pub?output=csv';
+const EMBEDDED_DATA = [{"address": "7 Skipton Street", "suburb": "Ballarat Central", "lat": -37.567974, "lng": 143.8546, "price": 730000, "beds": 3, "baths": 1, "cars": 2, "land": 593.0, "type": "House", "date": "2026-04-30", "status": "sold"}, {"address": "301A Raglan Street South", "suburb": "Ballarat Central", "lat": -37.567829, "lng": 143.849426, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": "2026-04-24", "status": "sold"}, {"address": "13 Beaufort Crescent", "suburb": "Ballarat Central", "lat": -37.548905, "lng": 143.852452, "price": 475000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": "2026-04-17", "status": "sold"}, {"address": "416 Windermere Street", "suburb": "Ballarat Central", "lat": -37.570094, "lng": 143.843981, "price": 400000, "beds": 3, "baths": 1, "cars": 1, "land": 237.0, "type": "House", "date": "2026-04-09", "status": "sold"}, {"address": "501 Eyre Street", "suburb": "Ballarat Central", "lat": -37.565358, "lng": 143.847835, "price": 750000, "beds": 3, "baths": 2, "cars": 1, "land": 340.0, "type": "House", "date": "2026-04-08", "status": "sold"}, {"address": "420 Drummond Street North", "suburb": "Ballarat Central", "lat": -37.550886, "lng": 143.849534, "price": 620000, "beds": 2, "baths": 1, "cars": 1, "land": null, "type": "House", "date": "2026-04-08", "status": "sold"}, {"address": "112 Lyons Street North", "suburb": "Ballarat Central", "lat": -37.557888, "lng": 143.852565, "price": 525000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": "2026-04-07", "status": "sold"}, {"address": "223 Windermere Street", "suburb": "Ballarat Central", "lat": -37.566553, "lng": 143.845159, "price": 643000, "beds": 3, "baths": 2, "cars": 2, "land": 256.0, "type": "House", "date": "2026-03-25", "status": "sold"}, {"address": "803 Eyre Street", "suburb": "Ballarat Central", "lat": -37.564822, "lng": 143.843122, "price": 650000, "beds": 3, "baths": 1, "cars": 2, "land": 473.0, "type": "House", "date": "2026-03-17", "status": "sold"}, {"address": "322 Dawson Street South", "suburb": "Ballarat Central", "lat": -37.568886, "lng": 143.8517, "price": 565000, "beds": 2, "baths": 1, "cars": 1, "land": 1015.0, "type": "House", "date": "2026-03-13", "status": "sold"}, {"address": "14 Surrey Street", "suburb": "Ballarat Central", "lat": -37.569149, "lng": 143.838027, "price": 595000, "beds": 3, "baths": 1, "cars": 1, "land": 300.0, "type": "House", "date": "2026-03-11", "status": "sold"}, {"address": "701 Eyre Street", "suburb": "Ballarat Central", "lat": -37.565031, "lng": 143.844911, "price": 686000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": "2026-03-08", "status": "sold"}, {"address": "305 Doveton Street South", "suburb": "Ballarat Central", "lat": -37.568647, "lng": 143.853782, "price": 520000, "beds": 3, "baths": 1, "cars": 1, "land": 344.0, "type": "House", "date": "2026-03-04", "status": "sold"}, {"address": "11B Ascot Street South", "suburb": "Ballarat Central", "lat": -37.561625, "lng": 143.844506, "price": 700000, "beds": 3, "baths": 2, "cars": 1, "land": null, "type": "House", "date": "2026-03-02", "status": "sold"}, {"address": "7 Ronald Street", "suburb": "Ballarat Central", "lat": -37.550825, "lng": 143.851986, "price": 465000, "beds": 3, "baths": 1, "cars": 1, "land": 445.0, "type": "House", "date": "2026-02-27", "status": "sold"}, {"address": "225A Errard Street South", "suburb": "Ballarat Central", "lat": -37.566765, "lng": 143.84812, "price": 605000, "beds": 3, "baths": 2, "cars": 1, "land": null, "type": "House", "date": "2026-02-25", "status": "sold"}, {"address": "416 Raglan Street South", "suburb": "Ballarat Central", "lat": -37.570528, "lng": 143.848401, "price": 660000, "beds": 3, "baths": 1, "cars": 2, "land": 470.0, "type": "House", "date": "2026-02-21", "status": "sold"}, {"address": "229 Raglan Street South", "suburb": "Ballarat Central", "lat": -37.567196, "lng": 143.849546, "price": 645000, "beds": 3, "baths": 1, "cars": 2, "land": 520.0, "type": "House", "date": "2026-02-13", "status": "sold"}, {"address": "226 Raglan Street South", "suburb": "Ballarat Central", "lat": -37.566702, "lng": 143.8491, "price": 580000, "beds": 3, "baths": 1, "cars": 1, "land": 547.0, "type": "House", "date": "2026-02-13", "status": "sold"}, {"address": "323A Raglan Street South", "suburb": "Ballarat Central", "lat": -37.568909, "lng": 143.849585, "price": 601125, "beds": 3, "baths": 2, "cars": 2, "land": 233.0, "type": "House", "date": "2026-02-09", "status": "sold"}, {"address": "511 Creswick Road", "suburb": "Ballarat Central", "lat": -37.544758, "lng": 143.850085, "price": 472000, "beds": 3, "baths": 1, "cars": 2, "land": 340.0, "type": "House", "date": "2026-01-31", "status": "sold"}, {"address": "808 MacArthur Street", "suburb": "Ballarat Central", "lat": -37.549918, "lng": 143.851101, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": "2026-01-30", "status": "sold"}, {"address": "3 Moyle Street", "suburb": "Ballarat Central", "lat": -37.567673, "lng": 143.858046, "price": 587500, "beds": 3, "baths": 2, "cars": 2, "land": null, "type": "House", "date": "2026-01-23", "status": "sold"}, {"address": "1215 Mair Street", "suburb": "Ballarat Central", "lat": -37.558118, "lng": 143.842011, "price": 720000, "beds": 3, "baths": 1, "cars": 1, "land": 445.0, "type": "House", "date": "2026-01-22", "status": "sold"}, {"address": "707 Dana Street", "suburb": "Ballarat Central", "lat": -37.563488, "lng": 143.849283, "price": 682000, "beds": 2, "baths": 1, "cars": 3, "land": 545.0, "type": "House", "date": "2026-01-19", "status": "sold"}, {"address": "222 Doveton Street South", "suburb": "Ballarat Central", "lat": -37.567499, "lng": 143.853462, "price": 562000, "beds": 3, "baths": 1, "cars": 1, "land": 332.0, "type": "House", "date": "2025-12-25", "status": "sold"}, {"address": "311 Pleasant Street", "suburb": "Ballarat Central", "lat": -37.567379, "lng": 143.837891, "price": 463500, "beds": 2, "baths": 1, "cars": 1, "land": 350.0, "type": "House", "date": "2025-12-19", "status": "sold"}, {"address": "219 Doveton Street South", "suburb": "Ballarat Central", "lat": -37.567461, "lng": 143.854005, "price": 519000, "beds": 2, "baths": 2, "cars": 1, "land": 217.0, "type": "House", "date": "2025-12-17", "status": "sold"}, {"address": "307 Pleasant Street South", "suburb": "Ballarat Central", "lat": -37.566939, "lng": 143.837972, "price": 785000, "beds": 3, "baths": 2, "cars": 2, "land": 540.0, "type": "House", "date": "2025-12-02", "status": "sold"}, {"address": "317 Lyons Street South", "suburb": "Ballarat Central", "lat": -37.569111, "lng": 143.850691, "price": 540000, "beds": 3, "baths": 1, "cars": 2, "land": 542.0, "type": "House", "date": "2025-11-26", "status": "sold"}, {"address": "1003 South Street", "suburb": "Ballarat Central", "lat": -37.568613, "lng": 143.839296, "price": 550000, "beds": 3, "baths": 2, "cars": 2, "land": 322.0, "type": "House", "date": "2025-11-24", "status": "sold"}, {"address": "204 Ascot Street South", "suburb": "Ballarat Central", "lat": -37.56497, "lng": 143.843362, "price": 645000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": "2025-11-20", "status": "sold"}, {"address": "815 Urquhart Street", "suburb": "Ballarat Central", "lat": -37.566634, "lng": 143.840447, "price": 717500, "beds": 3, "baths": 2, "cars": 1, "land": 302.0, "type": "House", "date": "2025-11-19", "status": "sold"}, {"address": "218 Lyons Street South", "suburb": "Ballarat Central", "lat": -37.566686, "lng": 143.850608, "price": 695000, "beds": 3, "baths": 1, "cars": 2, "land": 508.0, "type": "House", "date": "2025-11-19", "status": "sold"}, {"address": "21 Webster Street", "suburb": "Ballarat Central", "lat": -37.557264, "lng": 143.853108, "price": 505000, "beds": 2, "baths": 1, "cars": 2, "land": null, "type": "Terrace", "date": "2025-11-19", "status": "sold"}, {"address": "313 Pleasant Street", "suburb": "Ballarat Central", "lat": -37.567581, "lng": 143.837854, "price": 600000, "beds": 3, "baths": 1, "cars": 4, "land": 671.0, "type": "House", "date": "2025-11-11", "status": "sold"}, {"address": "804 South Street", "suburb": "Ballarat Central", "lat": -37.568539, "lng": 143.842319, "price": 625000, "beds": 3, "baths": 1, "cars": 4, "land": 735.0, "type": "House", "date": "2026-02-05", "status": "sold"}, {"address": "105 Sebastopol Street", "suburb": "Ballarat Central", "lat": -37.572054, "lng": 143.850643, "price": 530000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": "2025-12-05", "status": "sold"}, {"address": "17 Johnson Street", "suburb": "Ballarat Central", "lat": -37.555234, "lng": 143.851679, "price": 738000, "beds": 3, "baths": 1, "cars": 2, "land": 465.0, "type": "House", "date": "2026-02-11", "status": "sold"}, {"address": "407 Raglan Street South", "suburb": "Ballarat Central", "lat": -37.570215, "lng": 143.848988, "price": 500000, "beds": 3, "baths": 1, "cars": 2, "land": 466.0, "type": "House", "date": "2026-02-02", "status": "sold"}, {"address": "111 Eyre Street", "suburb": "Ballarat Central", "lat": -37.565976, "lng": 143.852916, "price": 580000, "beds": 3, "baths": 2, "cars": 1, "land": 306.0, "type": "House", "date": "2026-01-30", "status": "sold"}, {"address": "7 Urquhart Street", "suburb": "Ballarat Central", "lat": -37.568045, "lng": 143.852512, "price": 580000, "beds": 2, "baths": 1, "cars": 1, "land": null, "type": "House", "date": "2026-01-13", "status": "sold"}, {"address": "307 Skipton Street", "suburb": "Ballarat Central", "lat": -37.571264, "lng": 143.849362, "price": 335000, "beds": 3, "baths": 1, "cars": 1, "land": 218.0, "type": "House", "date": "2025-11-17", "status": "sold"}, {"address": "206 Eyre Street", "suburb": "Ballarat Central", "lat": -37.565433, "lng": 143.851928, "price": 627500, "beds": 2, "baths": 1, "cars": 1, "land": 515.0, "type": "House", "date": "2025-11-15", "status": "sold"}, {"address": "908 South St", "suburb": "Ballarat Central", "lat": -37.568329, "lng": 143.840522, "price": 600000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "17 Holmes St", "suburb": "Ballarat Central", "lat": -37.55393, "lng": 143.853955, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "707 South St", "suburb": "Ballarat Central", "lat": -37.569095, "lng": 143.843451, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "301a Raglan St S", "suburb": "Ballarat Central", "lat": -37.567829, "lng": 143.849426, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "310 Raglan St S", "suburb": "Ballarat Central", "lat": -37.568111, "lng": 143.848842, "price": 500000, "beds": 3, "baths": 1, "cars": 0, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "143 Creswick Rd", "suburb": "Ballarat Central", "lat": -37.553848, "lng": 143.852423, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "7 Ronald St", "suburb": "Ballarat Central", "lat": -37.550825, "lng": 143.851986, "price": 465000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "808 Macarthur St", "suburb": "Ballarat Central", "lat": -37.549918, "lng": 143.851101, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "17 Moyle St", "suburb": "Ballarat Central", "lat": -37.568323, "lng": 143.857476, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "2 Baird St", "suburb": "Ballarat Central", "lat": -37.54981, "lng": 143.851903, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "805 Urquhart St", "suburb": "Ballarat Central", "lat": -37.566716, "lng": 143.841173, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "1 South St", "suburb": "Ballarat Central", "lat": -37.570396, "lng": 143.854541, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "107 Sebastopol St", "suburb": "Ballarat Central", "lat": -37.572036, "lng": 143.85049, "price": 550000, "beds": 3, "baths": 1, "cars": 0, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "303a Skipton St", "suburb": "Ballarat Central", "lat": -37.571125, "lng": 143.849515, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "43 Grant St", "suburb": "Ballarat Central", "lat": -37.567235, "lng": 143.858781, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "211 Skipton St", "suburb": "Ballarat Central", "lat": -37.570379, "lng": 143.850516, "price": 600000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "13 Beaufort Cres", "suburb": "Ballarat Central", "lat": -37.548905, "lng": 143.852452, "price": 475000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "317 Doveton St S", "suburb": "Ballarat Central", "lat": -37.569307, "lng": 143.85366, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "511 Creswick Rd", "suburb": "Ballarat Central", "lat": -37.544758, "lng": 143.850085, "price": null, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "320 Skipton St", "suburb": "Ballarat Central", "lat": -37.570777, "lng": 143.849065, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "102 Lyons St S", "suburb": "Ballarat Central", "lat": -37.563894, "lng": 143.851126, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "223 Drummond St S", "suburb": "Ballarat Central", "lat": -37.566835, "lng": 143.846597, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "204 Lyons St S", "suburb": "Ballarat Central", "lat": -37.565954, "lng": 143.850745, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "15 Holmes St", "suburb": "Ballarat Central", "lat": -37.553949, "lng": 143.854112, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "403 Talbot St S", "suburb": "Ballarat Central", "lat": -37.569114, "lng": 143.841573, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "307 Urquhart St", "suburb": "Ballarat Central", "lat": -37.567553, "lng": 143.848404, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "22 Anderson St W", "suburb": "Ballarat Central", "lat": -37.566129, "lng": 143.859448, "price": 390000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "223 Armstrong St S", "suburb": "Ballarat Central", "lat": -37.567665, "lng": 143.855467, "price": 500000, "beds": 3, "baths": 1, "cars": 0, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "807 Urquhart St", "suburb": "Ballarat Central", "lat": -37.566703, "lng": 143.841054, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "208 Ascot St S", "suburb": "Ballarat Central", "lat": -37.565083, "lng": 143.843342, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "314a Ripon St S", "suburb": "Ballarat Central", "lat": -37.567739, "lng": 143.839732, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "118 Raglan St S", "suburb": "Ballarat Central", "lat": -37.564348, "lng": 143.849544, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "3 Skipton St", "suburb": "Ballarat Central", "lat": -37.567833, "lng": 143.854845, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "802 Macarthur St", "suburb": "Ballarat Central", "lat": -37.549965, "lng": 143.851485, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "403 Dawson St S", "suburb": "Ballarat Central", "lat": -37.570273, "lng": 143.851981, "price": 450000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "114 Lexton St", "suburb": "Ballarat Central", "lat": -37.563892, "lng": 143.852395, "price": 600000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "410 Drummond St S", "suburb": "Ballarat Central", "lat": -37.569962, "lng": 143.845509, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "3 Urquhart St", "suburb": "Ballarat Central", "lat": -37.568082, "lng": 143.852808, "price": 550000, "beds": 3, "baths": 2, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "13 Claxton St", "suburb": "Ballarat Central", "lat": -37.555576, "lng": 143.853507, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "2 Holmes St", "suburb": "Ballarat Central", "lat": -37.553859, "lng": 143.855234, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "423 Armstrong St S", "suburb": "Ballarat Central", "lat": -37.571381, "lng": 143.852325, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "309 South St", "suburb": "Ballarat Central", "lat": -37.569748, "lng": 143.849049, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "23 Baird St", "suburb": "Ballarat Central", "lat": -37.54826, "lng": 143.851777, "price": 450000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "118 Doveton St S", "suburb": "Ballarat Central", "lat": -37.565392, "lng": 143.85385, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "410 Lyons St S", "suburb": "Ballarat Central", "lat": -37.571521, "lng": 143.849729, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "404 Sebastopol St", "suburb": "Ballarat Central", "lat": -37.571142, "lng": 143.846503, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "321 Windermere St", "suburb": "Ballarat Central", "lat": -37.568588, "lng": 143.844787, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "331 Raglan St S", "suburb": "Ballarat Central", "lat": -37.569356, "lng": 143.849147, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "7 Fawkner St", "suburb": "Ballarat Central", "lat": -37.572498, "lng": 143.851458, "price": 600000, "beds": 3, "baths": 2, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "907 Gregory St", "suburb": "Ballarat Central", "lat": -37.544365, "lng": 143.848711, "price": 500000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "706 South St", "suburb": "Ballarat Central", "lat": -37.56869, "lng": 143.8436, "price": 500000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "505 Lyons St S", "suburb": "Ballarat Central", "lat": -37.572341, "lng": 143.850102, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "403 Urquhart St", "suburb": "Ballarat Central", "lat": -37.567415, "lng": 143.847213, "price": 550000, "beds": 3, "baths": 1, "cars": 0, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "422 Dawson St S", "suburb": "Ballarat Central", "lat": -37.57146, "lng": 143.851236, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "106 Sebastopol St", "suburb": "Ballarat Central", "lat": -37.571648, "lng": 143.850788, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "303 Errard St S", "suburb": "Ballarat Central", "lat": -37.567651, "lng": 143.847957, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "507 Lyons St S", "suburb": "Ballarat Central", "lat": -37.572466, "lng": 143.850079, "price": 380000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "301 Drummond St S", "suburb": "Ballarat Central", "lat": -37.567309, "lng": 143.846523, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "3 Ronald St", "suburb": "Ballarat Central", "lat": -37.551044, "lng": 143.851947, "price": 600000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "3 Hill St", "suburb": "Ballarat Central", "lat": -37.572144, "lng": 143.849469, "price": 500000, "beds": 3, "baths": 1, "cars": 0, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "5 Baird St", "suburb": "Ballarat Central", "lat": -37.549628, "lng": 143.851522, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "106 Hickman St", "suburb": "Ballarat Central", "lat": -37.570727, "lng": 143.854308, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "407 Windermere St", "suburb": "Ballarat Central", "lat": -37.569789, "lng": 143.844568, "price": 500000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "101 Sebastopol St", "suburb": "Ballarat Central", "lat": -37.572103, "lng": 143.851059, "price": 600000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "104 Sebastopol St", "suburb": "Ballarat Central", "lat": -37.571664, "lng": 143.850924, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "504a Urquhart St", "suburb": "Ballarat Central", "lat": -37.566812, "lng": 143.845654, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "14a Anderson St W", "suburb": "Ballarat Central", "lat": -37.565575, "lng": 143.859797, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "603 Urquhart St", "suburb": "Ballarat Central", "lat": -37.567086, "lng": 143.844379, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "211 Windermere St", "suburb": "Ballarat Central", "lat": -37.565941, "lng": 143.845272, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "413 Dawson St S", "suburb": "Ballarat Central", "lat": -37.57084, "lng": 143.851875, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "203 Windermere St", "suburb": "Ballarat Central", "lat": -37.565351, "lng": 143.845379, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "103 South St", "suburb": "Ballarat Central", "lat": -37.570165, "lng": 143.852525, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "320 Lyons St S", "suburb": "Ballarat Central", "lat": -37.568855, "lng": 143.850222, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "24 Anderson St W", "suburb": "Ballarat Central", "lat": -37.566216, "lng": 143.859393, "price": 500000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "105 Sebastopol St", "suburb": "Ballarat Central", "lat": -37.572054, "lng": 143.850643, "price": 540000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "904 Sebastopol St", "suburb": "Ballarat Central", "lat": -37.570268, "lng": 143.838563, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "308 Skipton St", "suburb": "Ballarat Central", "lat": -37.570287, "lng": 143.849601, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "15 Moyle St", "suburb": "Ballarat Central", "lat": -37.568239, "lng": 143.857552, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "802 Sebastopol St", "suburb": "Ballarat Central", "lat": -37.570488, "lng": 143.840851, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "104 Urquhart St", "suburb": "Ballarat Central", "lat": -37.567529, "lng": 143.851714, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "141 Albert St", "suburb": "Ballarat Central", "lat": -37.566931, "lng": 143.858616, "price": 550000, "beds": 3, "baths": 1, "cars": 0, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "603a South St", "suburb": "Ballarat Central", "lat": -37.569298, "lng": 143.845214, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "316 Raglan St S", "suburb": "Ballarat Central", "lat": -37.568407, "lng": 143.848788, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "6c Pisgah St", "suburb": "Ballarat Central", "lat": -37.546156, "lng": 143.8496, "price": 550000, "beds": 3, "baths": 2, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "3a Hill St", "suburb": "Ballarat Central", "lat": -37.572225, "lng": 143.849567, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "34 Grant St", "suburb": "Ballarat Central", "lat": -37.567406, "lng": 143.858184, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "316 Skipton St", "suburb": "Ballarat Central", "lat": -37.570554, "lng": 143.849289, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "118 Hickman St", "suburb": "Ballarat Central", "lat": -37.571442, "lng": 143.8533, "price": 500000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "503 Lyons St S", "suburb": "Ballarat Central", "lat": -37.57222, "lng": 143.850124, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "416a Windermere St", "suburb": "Ballarat Central", "lat": -37.570149, "lng": 143.843971, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "703 Cosmopolitan Pl", "suburb": "Ballarat Central", "lat": -37.566261, "lng": 143.842729, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "207 Skipton St", "suburb": "Ballarat Central", "lat": -37.570205, "lng": 143.850808, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "11 Holmes St", "suburb": "Ballarat Central", "lat": -37.553986, "lng": 143.854419, "price": 500000, "beds": 3, "baths": 2, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "11 Beaufort Cres", "suburb": "Ballarat Central", "lat": -37.549104, "lng": 143.852588, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "4 Holmes St", "suburb": "Ballarat Central", "lat": -37.553765, "lng": 143.85455, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "135a Albert St", "suburb": "Ballarat Central", "lat": -37.566049, "lng": 143.858776, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "409 Dawson St S", "suburb": "Ballarat Central", "lat": -37.570529, "lng": 143.851932, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "9 Beaufort Cres", "suburb": "Ballarat Central", "lat": -37.549298, "lng": 143.852713, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "1 Skipton St", "suburb": "Ballarat Central", "lat": -37.567747, "lng": 143.854992, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "10 Davey St", "suburb": "Ballarat Central", "lat": -37.558365, "lng": 143.853298, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "12 Davey St", "suburb": "Ballarat Central", "lat": -37.558262, "lng": 143.853317, "price": 500000, "beds": 3, "baths": 1, "cars": 0, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "901 South St", "suburb": "Ballarat Central", "lat": -37.568822, "lng": 143.841113, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "416 Windermere St", "suburb": "Ballarat Central", "lat": -37.570094, "lng": 143.843981, "price": 400000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "38 Grant St", "suburb": "Ballarat Central", "lat": -37.567504, "lng": 143.858354, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "101a South St", "suburb": "Ballarat Central", "lat": -37.570202, "lng": 143.852827, "price": 550000, "beds": 3, "baths": 1, "cars": 0, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "109 Urquhart St", "suburb": "Ballarat Central", "lat": -37.567893, "lng": 143.851238, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "313 Ripon St S", "suburb": "Ballarat Central", "lat": -37.567448, "lng": 143.840319, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "20 Fawkner St", "suburb": "Ballarat Central", "lat": -37.573388, "lng": 143.850464, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "704 Sebastopol St", "suburb": "Ballarat Central", "lat": -37.570611, "lng": 143.841916, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "914a Eyre St", "suburb": "Ballarat Central", "lat": -37.564157, "lng": 143.841006, "price": 438000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "318 Skipton St", "suburb": "Ballarat Central", "lat": -37.570648, "lng": 143.849185, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "308 South St", "suburb": "Ballarat Central", "lat": -37.569386, "lng": 143.849545, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "428 Errard St S", "suburb": "Ballarat Central", "lat": -37.571006, "lng": 143.846816, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "404 Ripon St S", "suburb": "Ballarat Central", "lat": -37.568815, "lng": 143.839539, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "405 Drummond St S", "suburb": "Ballarat Central", "lat": -37.569646, "lng": 143.84607, "price": 550000, "beds": 3, "baths": 1, "cars": 0, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "213 Lyons St S", "suburb": "Ballarat Central", "lat": -37.566561, "lng": 143.85116, "price": 455000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "303 Skipton St", "suburb": "Ballarat Central", "lat": -37.571042, "lng": 143.849607, "price": 500000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "13 Fawkner St", "suburb": "Ballarat Central", "lat": -37.573, "lng": 143.851362, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "417 Dawson St S", "suburb": "Ballarat Central", "lat": -37.571018, "lng": 143.851842, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "419 Armstrong St S", "suburb": "Ballarat Central", "lat": -37.571263, "lng": 143.852464, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "506 Mair St", "suburb": "Ballarat Central", "lat": -37.559034, "lng": 143.853704, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "501 South St", "suburb": "Ballarat Central", "lat": -37.569514, "lng": 143.847085, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "409 Lyons St S", "suburb": "Ballarat Central", "lat": -37.570813, "lng": 143.850383, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "21 Fawkner St", "suburb": "Ballarat Central", "lat": -37.573924, "lng": 143.850213, "price": 500000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "112 Lyons St N", "suburb": "Ballarat Central", "lat": -37.557888, "lng": 143.852565, "price": 517000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "407 Raglan St S", "suburb": "Ballarat Central", "lat": -37.570215, "lng": 143.848988, "price": 500000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "229 Armstrong St S", "suburb": "Ballarat Central", "lat": -37.567911, "lng": 143.85542, "price": 550000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "205 Dawson St S", "suburb": "Ballarat Central", "lat": -37.566213, "lng": 143.852725, "price": 500000, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "403 Drummond St S", "suburb": "Ballarat Central", "lat": -37.569544, "lng": 143.846117, "price": 550000, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": "House", "date": null, "status": "off_market"}, {"address": "2/308 Forest Street, Buninyong", "suburb": "Ballarat Central", "lat": -37.649111, "lng": 143.885967, "price": null, "beds": 7, "baths": 5, "cars": 2, "land": null, "type": null, "date": null, "status": "off_market"}, {"address": "22 Primrose Street, Wendouree", "suburb": "Ballarat Central", "lat": -37.530515, "lng": 143.82032, "price": null, "beds": 3, "baths": 2, "cars": 1, "land": null, "type": null, "date": null, "status": "off_market"}, {"address": "18 Selwyn Street, Miners Rest", "suburb": "Ballarat Central", "lat": -37.50488, "lng": 143.80835, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": 606.0, "type": null, "date": null, "status": "off_market"}, {"address": "1/110 Leith Street, Redan", "suburb": "Ballarat Central", "lat": -37.579831, "lng": 143.843281, "price": 545000, "beds": 3, "baths": 3, "cars": 1, "land": null, "type": null, "date": null, "status": "off_market"}, {"address": "27 Fraser Street, Mount Pleasant", "suburb": "Ballarat Central", "lat": -37.581366, "lng": 143.857772, "price": null, "beds": 4, "baths": 2, "cars": 2, "land": 330.0, "type": null, "date": null, "status": "off_market"}, {"address": "20 Canterbury Street, Brown Hill", "suburb": "Ballarat Central", "lat": -37.555319, "lng": 143.888427, "price": null, "beds": 3, "baths": 1, "cars": 3, "land": 587.0, "type": null, "date": null, "status": "off_market"}, {"address": "55 Primrose Street, Wendouree", "suburb": "Ballarat Central", "lat": -37.528936, "lng": 143.817511, "price": 449000, "beds": 3, "baths": 1, "cars": 2, "land": 639.0, "type": null, "date": null, "status": "off_market"}, {"address": "35 White Avenue, Wendouree", "suburb": "Ballarat Central", "lat": -37.539038, "lng": 143.846761, "price": null, "beds": 4, "baths": 1, "cars": 2, "land": 669.0, "type": null, "date": null, "status": "off_market"}, {"address": "210 Stawell Street North, Brown Hill", "suburb": "Ballarat Central", "lat": -37.553829, "lng": 143.882807, "price": 325000, "beds": 3, "baths": 1, "cars": null, "land": 388.0, "type": null, "date": null, "status": "off_market"}, {"address": "515 Walker Street, Ballarat North", "suburb": "Ballarat Central", "lat": -37.542004, "lng": 143.862068, "price": null, "beds": 3, "baths": 1, "cars": 1, "land": 340.0, "type": null, "date": null, "status": "off_market"}, {"address": "5 Alfred Street, Sebastopol", "suburb": "Ballarat Central", "lat": -37.582599, "lng": 143.83511, "price": null, "beds": 4, "baths": 2, "cars": 2, "land": 370.0, "type": null, "date": null, "status": "off_market"}, {"address": "87 Anglesea Street, Winter Valley", "suburb": "Ballarat Central", "lat": -37.567359, "lng": 143.861642, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": 323.0, "type": null, "date": null, "status": "off_market"}, {"address": "334 Humffray Street South, Golden Point", "suburb": "Ballarat Central", "lat": -37.553773, "lng": 143.867072, "price": null, "beds": 3, "baths": 1, "cars": 1, "land": 504.0, "type": null, "date": null, "status": "off_market"}, {"address": "406 Nicholson Street, Black Hill", "suburb": "Ballarat Central", "lat": -37.583886, "lng": 143.827856, "price": null, "beds": 3, "baths": 1, "cars": 1, "land": 423.0, "type": null, "date": null, "status": "off_market"}, {"address": "44 Iona Drive, Sebastopol", "suburb": "Ballarat Central", "lat": -37.567816, "lng": 143.78345, "price": null, "beds": 3, "baths": 1, "cars": 3, "land": 644.0, "type": null, "date": null, "status": "off_market"}, {"address": "2 Red Robin Drive, Winter Valley", "suburb": "Ballarat Central", "lat": -37.577157, "lng": 143.84385, "price": null, "beds": 3, "baths": 2, "cars": 1, "land": 303.0, "type": null, "date": null, "status": "off_market"}, {"address": "617A Skipton Street, Redan", "suburb": "Ballarat Central", "lat": -37.583968, "lng": 143.839876, "price": null, "beds": 3, "baths": 1, "cars": 2, "land": 496.0, "type": null, "date": null, "status": "off_market"}, {"address": "1 Guiding Court, Sebastopol", "suburb": "Ballarat Central", "lat": -37.601042, "lng": 143.843713, "price": null, "beds": 3, "baths": 1, "cars": 2, "land": 663.0, "type": null, "date": null, "status": "off_market"}, {"address": "11 Lewis Court, Sebastopol", "suburb": "Ballarat Central", "lat": -37.574579, "lng": 143.86928, "price": null, "beds": 3, "baths": 1, "cars": 2, "land": 602.0, "type": null, "date": null, "status": "off_market"}, {"address": "437 Main Road, Golden Point", "suburb": "Ballarat Central", "lat": -37.562715, "lng": 143.873166, "price": null, "beds": 3, "baths": 2, "cars": 4, "land": 666.0, "type": null, "date": null, "status": "off_market"}, {"address": "6 King Street South, Ballarat East", "suburb": "Ballarat Central", "lat": -37.549909, "lng": 143.864634, "price": null, "beds": 3, "baths": 1, "cars": 1, "land": 344.0, "type": null, "date": null, "status": "off_market"}, {"address": "Address available on request, Sebastopol", "suburb": "Ballarat Central", "lat": -37.622493, "lng": 143.585752, "price": null, "beds": 3, "baths": 1, "cars": 2, "land": null, "type": null, "date": null, "status": "off_market"}, {"address": "757 Linton-Carngham Road, Snake Valley", "suburb": "Ballarat Central", "lat": -37.576267, "lng": 143.877949, "price": 525000, "beds": 3, "baths": 1, "cars": 2, "land": 3685.0, "type": null, "date": null, "status": "off_market"}, {"address": "2 Spencer Ridge, Canadian", "suburb": "Ballarat Central", "lat": -37.588414, "lng": 143.866373, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": null, "type": null, "date": null, "status": "off_market"}, {"address": "826 Geelong Road, Canadian", "suburb": "Ballarat Central", "lat": -37.565083, "lng": 143.843342, "price": null, "beds": 3, "baths": null, "cars": 1, "land": 801.0, "type": null, "date": null, "status": "off_market"}, {"address": "208 Ascot Street South, Ballarat Central", "suburb": "Ballarat Central", "lat": -37.578713, "lng": 143.79302, "price": null, "beds": 3, "baths": 1, "cars": 1, "land": 364.0, "type": null, "date": null, "status": "off_market"}, {"address": "12 Sunpeaks Street, Winter Valley", "suburb": "Ballarat Central", "lat": -37.549765, "lng": 143.855242, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": null, "type": null, "date": null, "status": "off_market"}, {"address": "107 Clyde Street, Soldiers Hill", "suburb": "Ballarat Central", "lat": -37.554333, "lng": 143.788638, "price": null, "beds": 3, "baths": 1, "cars": 1, "land": 395.0, "type": null, "date": null, "status": "off_market"}, {"address": "5 Bannister Street, Alfredton", "suburb": "Ballarat Central", "lat": -37.555812, "lng": 143.878788, "price": null, "beds": 4, "baths": 2, "cars": 2, "land": null, "type": null, "date": null, "status": "off_market"}, {"address": "184 Humffray Street North, Ballarat East", "suburb": "Ballarat Central", "lat": -37.482975, "lng": 143.804431, "price": null, "beds": 3, "baths": 1, "cars": 1, "land": 525.0, "type": null, "date": null, "status": "off_market"}, {"address": "10A Sharpes Road, Miners Rest", "suburb": "Ballarat Central", "lat": -37.578932, "lng": 143.842931, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": 1027.0, "type": null, "date": null, "status": "off_market"}, {"address": "715 Skipton Street, Redan", "suburb": "Ballarat Central", "lat": -37.576182, "lng": 143.859231, "price": null, "beds": 4, "baths": 1, "cars": null, "land": 827.0, "type": null, "date": null, "status": "off_market"}, {"address": "2/709 Tress Street, Mount Pleasant", "suburb": "Ballarat Central", "lat": -37.567167, "lng": 143.861248, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": 356.0, "type": null, "date": null, "status": "off_market"}, {"address": "7 Eddy Street, Golden Point", "suburb": "Ballarat Central", "lat": -37.593836, "lng": 143.832998, "price": null, "beds": 4, "baths": 1, "cars": 2, "land": 420.0, "type": null, "date": null, "status": "off_market"}, {"address": "3 Miller Street, Sebastopol", "suburb": "Ballarat Central", "lat": -37.573092, "lng": 143.841459, "price": null, "beds": 3, "baths": 1, "cars": 1, "land": 1052.0, "type": null, "date": null, "status": "off_market"}, {"address": "303 La Trobe Street, Redan", "suburb": "Ballarat Central", "lat": -37.554242, "lng": 143.883558, "price": null, "beds": 5, "baths": 1, "cars": 2, "land": 660.0, "type": null, "date": null, "status": "off_market"}, {"address": "297 Humffray Street North, Brown Hill", "suburb": "Ballarat Central", "lat": -37.741613, "lng": 143.694454, "price": 425000, "beds": 3, "baths": 1, "cars": null, "land": 418.0, "type": null, "date": null, "status": "off_market"}, {"address": "140 Dales Road, Staffordshire Reef", "suburb": "Ballarat Central", "lat": -37.644127, "lng": 143.687266, "price": null, "beds": 4, "baths": 1, "cars": 2, "land": 50600, "type": null, "date": null, "status": "off_market"}, {"address": "10 Heales Street, Smythesdale", "suburb": "Ballarat Central", "lat": -37.541774, "lng": 143.834762, "price": null, "beds": 3, "baths": 1, "cars": 2, "land": 1012.0, "type": null, "date": null, "status": "off_market"}, {"address": "1/1338 Gregory Street, Lake Wendouree", "suburb": "Ballarat Central", "lat": -37.569411, "lng": 143.852158, "price": null, "beds": 3, "baths": 2, "cars": 1, "land": 418.0, "type": null, "date": null, "status": "off_market"}, {"address": "119 Skipton Street, Ballarat Central", "suburb": "Ballarat Central", "lat": -37.647302, "lng": 143.885897, "price": null, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": null, "date": null, "status": "off_market"}, {"address": "311 Palmerston Street, Buninyong", "suburb": "Ballarat Central", "lat": -37.521169, "lng": 143.833614, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": 320.0, "type": null, "date": null, "status": "off_market"}, {"address": "1 Langstaffe Drive, Wendouree", "suburb": "Ballarat Central", "lat": -37.578518, "lng": 143.842347, "price": null, "beds": 3, "baths": 1, "cars": 3, "land": 657.0, "type": null, "date": null, "status": "off_market"}, {"address": "710A Skipton Street, Redan", "suburb": "Ballarat Central", "lat": -37.559811, "lng": 143.873474, "price": null, "beds": 3, "baths": 2, "cars": 3, "land": 996.0, "type": null, "date": null, "status": "off_market"}, {"address": "5A Corbett Street, Ballarat East", "suburb": "Ballarat Central", "lat": -37.556508, "lng": 143.86457, "price": null, "beds": 3, "baths": 1, "cars": 1, "land": null, "type": null, "date": null, "status": "off_market"}, {"address": "23 Rowe Street, Black Hill", "suburb": "Ballarat Central", "lat": -37.656226, "lng": 143.883686, "price": null, "beds": 3, "baths": 1, "cars": 2, "land": 518.0, "type": null, "date": null, "status": "off_market"}, {"address": "4 Hedrick Street, Buninyong", "suburb": "Ballarat Central", "lat": -37.528144, "lng": 143.816817, "price": null, "beds": 3, "baths": 1, "cars": 2, "land": 1011.0, "type": null, "date": null, "status": "off_market"}, {"address": "1271 Grevillea Road, Wendouree", "suburb": "Ballarat Central", "lat": -37.568806, "lng": 143.895392, "price": null, "beds": 3, "baths": 1, "cars": 1, "land": 672.0, "type": null, "date": null, "status": "off_market"}, {"address": "8 Catalina Court, Ballarat East", "suburb": "Ballarat Central", "lat": -37.537255, "lng": 143.824459, "price": 549000, "beds": 3, "baths": 2, "cars": 2, "land": 263.0, "type": null, "date": null, "status": "off_market"}, {"address": "27 Monastery Drive, Wendouree", "suburb": "Ballarat Central", "lat": -37.421219, "lng": 143.716454, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": 155.0, "type": null, "date": null, "status": "off_market"}, {"address": "108 McKay Street, Learmonth", "suburb": "Ballarat Central", "lat": -37.600635, "lng": 143.813954, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": null, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 330 Jakkalberry Drive, Bonshaw", "suburb": "Ballarat Central", "lat": -37.598512, "lng": 143.767256, "price": null, "beds": 4, "baths": 2, "cars": 2, "land": 294.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 115 Malika Street, Smythes Creek", "suburb": "Ballarat Central", "lat": -37.572932, "lng": 143.793966, "price": 339747, "beds": 4, "baths": 2, "cars": 2, "land": 294.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 624 / 6 Milanesia Place, Winter Valley", "suburb": "Ballarat Central", "lat": -37.598512, "lng": 143.767256, "price": 539950, "beds": 4, "baths": 2, "cars": 2, "land": 400.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 1221 Vespa Grange, Smythes Creek", "suburb": "Ballarat Central", "lat": -37.589329, "lng": 143.780107, "price": 497645, "beds": 3, "baths": 2, "cars": 2, "land": 384.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 72 Nagori Rd, Aberdeen Estate, Winter Valley", "suburb": "Ballarat Central", "lat": -37.589329, "lng": 143.780107, "price": 543000, "beds": 4, "baths": 2, "cars": 2, "land": 480.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 166 Nagori Rd, Aberdeen Estate, Winter Valley", "suburb": "Ballarat Central", "lat": -37.589329, "lng": 143.780107, "price": 542000, "beds": 4, "baths": 2, "cars": 2, "land": 480.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 80 Nagori Rd, Aberdeen Estate, Winter Valley", "suburb": "Ballarat Central", "lat": -37.589329, "lng": 143.780107, "price": 528000, "beds": 4, "baths": 2, "cars": 2, "land": 476.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 78 Nagori Rd, Aberdeen Estate, Winter Valley", "suburb": "Ballarat Central", "lat": -37.587798, "lng": 143.806008, "price": 516000, "beds": 3, "baths": 2, "cars": 2, "land": 419.72, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 38 Volt Street, Winter Valley", "suburb": "Ballarat Central", "lat": -37.577353, "lng": 143.793237, "price": 500345, "beds": 3, "baths": 2, "cars": 2, "land": 352.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 8087 Remarkables Drive, Winter Valley", "suburb": "Ballarat Central", "lat": -37.577353, "lng": 143.793237, "price": null, "beds": 3, "baths": 2, "cars": 1, "land": 233.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 7088 Remarkables Drive, Winter Valley", "suburb": "Ballarat Central", "lat": -37.577353, "lng": 143.793237, "price": null, "beds": 3, "baths": 2, "cars": 1, "land": 233.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 7265 Remarkables Drive, Winter Valley", "suburb": "Ballarat Central", "lat": -37.577353, "lng": 143.793237, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": 233.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 6778 Remarkables Drive, Winter Valley", "suburb": "Ballarat Central", "lat": -37.686875, "lng": 143.567189, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": 235.0, "type": null, "date": null, "status": "off_market"}, {"address": "43 Brooke Street, Linton", "suburb": "Ballarat Central", "lat": -33.85274, "lng": 151.104456, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": 1011.0, "type": null, "date": null, "status": "off_market"}, {"address": "Address available on request, Smythes Creek", "suburb": "Ballarat Central", "lat": -37.577548, "lng": 143.793881, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": 298.0, "type": null, "date": null, "status": "off_market"}, {"address": "5 Remarkables Drive, Winter Valley", "suburb": "Ballarat Central", "lat": -37.598512, "lng": 143.767256, "price": 511406, "beds": 3, "baths": 2, "cars": 1, "land": 275.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 1213 Vespa Grange, Smythes Creek", "suburb": "Ballarat Central", "lat": -37.598512, "lng": 143.767256, "price": 539501, "beds": 4, "baths": null, "cars": 2, "land": 448.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 1215 Vespa Grange, Smythes Creek", "suburb": "Ballarat Central", "lat": -37.598512, "lng": 143.767256, "price": 501101, "beds": 3, "baths": 2, "cars": 2, "land": 400.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 1218 Vespa Grange, Smythes Creek", "suburb": "Ballarat Central", "lat": -37.42192, "lng": 143.712952, "price": 488901, "beds": 3, "baths": 2, "cars": 2, "land": 362.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 31 Laidlaw Street, Learmonth", "suburb": "Ballarat Central", "lat": -37.588474, "lng": 143.804102, "price": 480995, "beds": 4, "baths": 2, "cars": 2, "land": 854.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 131 Vivid Street, Winter Valley", "suburb": "Ballarat Central", "lat": -37.577353, "lng": 143.793237, "price": 549335, "beds": 3, "baths": 2, "cars": 2, "land": 506.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 238 Remarkables Drive, Winter Valley", "suburb": "Ballarat Central", "lat": -37.572736, "lng": 143.795243, "price": 353190, "beds": 4, "baths": 2, "cars": 2, "land": 275.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 614 Buckley Avenue, Winter Valley", "suburb": "Ballarat Central", "lat": -37.572736, "lng": 143.795243, "price": 389892, "beds": 4, "baths": 2, "cars": 2, "land": 400.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 613 Buckley Avenue, Winter Valley", "suburb": "Ballarat Central", "lat": -37.579211, "lng": 143.794623, "price": 387792, "beds": 4, "baths": 2, "cars": 2, "land": 400.0, "type": null, "date": null, "status": "off_market"}, {"address": "254 Winterfield Estate, Winter Valley", "suburb": "Ballarat Central", "lat": -37.592313, "lng": 143.806162, "price": 548133, "beds": 4, "baths": 2, "cars": 2, "land": 350.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 171 Cherry Flat Road, Smythes Creek", "suburb": "Ballarat Central", "lat": -37.580008, "lng": 143.782687, "price": 333600, "beds": 3, "baths": 2, "cars": 2, "land": 273.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 506 Egret Street, Winter Valley", "suburb": "Ballarat Central", "lat": -37.587798, "lng": 143.806008, "price": 526335, "beds": 3, "baths": 2, "cars": 2, "land": 325.0, "type": null, "date": null, "status": "off_market"}, {"address": "Lot 38 Volt Street, Winter Valley", "suburb": "Ballarat Central", "lat": -37.639039, "lng": 143.684725, "price": 509335, "beds": 3, "baths": 2, "cars": 2, "land": 352.0, "type": null, "date": null, "status": "off_market"}, {"address": "39 Wills street, Smythesdale", "suburb": "Ballarat Central", "lat": -37.59457, "lng": 143.838907, "price": 430000, "beds": 3, "baths": 1, "cars": null, "land": 14200, "type": null, "date": null, "status": "off_market"}, {"address": "3/106A Beverin Street, Sebastopol", "suburb": "Ballarat Central", "lat": -37.580918, "lng": 143.873166, "price": null, "beds": 3, "baths": 2, "cars": 2, "land": null, "type": null, "date": null, "status": "off_market"}];
+
+// ── SUBURB CENTRES ──────────────────────────────────────────────
+const SUBURBS = {
+  'ballarat-central': [-37.562, 143.855, 14],
+  'ballarat-east':    [-37.557, 143.876, 14],
+  'ballarat-north':   [-37.538, 143.854, 13],
+  'wendouree':        [-37.538, 143.830, 14],
+  'canadian':         [-37.591, 143.878, 14],
+  'sebastopol':       [-37.588, 143.849, 14],
+  'alfredton':        [-37.556, 143.816, 14],
+  'delacombe':        [-37.596, 143.824, 14],
+  'mount-pleasant':   [-37.547, 143.866, 14],
+  'soldiers-hill':    [-37.549, 143.847, 14],
+};
+
+// ── MAP ─────────────────────────────────────────────────────────
+const map = L.map('map', { center: [-37.562, 143.855], zoom: 14 });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap', maxZoom: 19
+}).addTo(map);
+
+const soldLayer = L.layerGroup().addTo(map);
+const offLayer  = L.layerGroup().addTo(map);
+let showSold = true, showOff = true;
+
+const LABEL_ZOOM = 15;
+let currentZoom = map.getZoom();
+let allMarkers = [];
+
+// ── ZOOM HINT ───────────────────────────────────────────────────
+const zoomHint = document.getElementById('zoom-hint');
+map.on('zoomend', () => {
+  currentZoom = map.getZoom();
+  updateLabels();
+  zoomHint.style.opacity = currentZoom >= LABEL_ZOOM ? '0' : '1';
+});
+
+// ── LAYER TOGGLES ───────────────────────────────────────────────
+function toggleLayer(type) {
+  if (type === 'sold') {
+    showSold = !showSold;
+    showSold ? map.addLayer(soldLayer) : map.removeLayer(soldLayer);
+    document.getElementById('pill-sold').classList.toggle('dim', !showSold);
+  } else {
+    showOff = !showOff;
+    showOff ? map.addLayer(offLayer) : map.removeLayer(offLayer);
+    document.getElementById('pill-off').classList.toggle('dim', !showOff);
+  }
+  updateCounts();
+}
+
+// ── FORMAT HELPERS ───────────────────────────────────────────────
+function fmtK(n) {
+  if (!n) return '';
+  return n >= 1000000 ? '$'+(n/1e6).toFixed(2)+'M' : '$'+Math.round(n/1000)+'k';
+}
+function fmtFull(n) {
+  return n ? '$' + n.toLocaleString('en-AU') : '–';
+}
+
+// ── MARKER FACTORY ───────────────────────────────────────────────
+function makeMarker(p) {
+  const isSold = p.status === 'sold';
+  const color  = isSold ? '#ff4444' : '#3b82f6';
+
+  const circle = L.circleMarker([p.lat, p.lng], {
+    radius: 8, fillColor: color,
+    color: 'rgba(255,255,255,0.55)', weight: 1.8,
+    fillOpacity: 0.92,
+  });
+
+  // Popup
+  const badge   = isSold ? 'sold' : 'off';
+  const badgeTxt= isSold ? '● SOLD' : '● OFF MARKET';
+  const priceStr= fmtFull(p.price);
+  const meta = [
+    p.beds  != null ? `🛏 ${p.beds}`  : null,
+    p.baths != null ? `🚿 ${p.baths}` : null,
+    p.cars  != null ? `🚗 ${p.cars}`  : null,
+    p.land  != null ? `📐 ${p.land}m²`: null,
+    p.type             ? `🏠 ${p.type}` : null,
+  ].filter(Boolean);
+
+  circle.bindPopup(`<div class="pu">
+    <div class="pu-badge ${badge}">${badgeTxt}</div>
+    <div class="pu-addr">${p.address}, ${p.suburb}</div>
+    <div class="pu-price">${priceStr}</div>
+    <div class="pu-meta">${meta.map(m=>`<span>${m}</span>`).join('')}</div>
+    ${isSold && p.date ? `<div class="pu-date">Sold: ${p.date}</div>` : ''}
+  </div>`, { maxWidth: 300 });
+
+  // Price label
+  // All prices are now normalised numbers — just format consistently
+  const labelText = p.price ? fmtK(p.price) : '';
+  const label = L.marker([p.lat, p.lng], {
+    icon: L.divIcon({
+      className: 'price-label',
+      html: `<div style="margin-top:13px">${labelText}</div>`,
+      iconAnchor: [24, 0]
+    }),
+    interactive: false,
+    zIndexOffset: -100
+  });
+
+  return { circle, label, isSold, data: p, visible: true };
+}
+
+// ── RENDER ALL ──────────────────────────────────────────────────
+function renderMarkers(properties) {
+  soldLayer.clearLayers();
+  offLayer.clearLayers();
+  allMarkers = [];
+
+  buildSuburbDropdown(properties);
+  let sold = 0, off = 0;
+  for (const p of properties) {
+    if (!p.lat || !p.lng) continue;
+    const m = makeMarker(p);
+    allMarkers.push(m);
+    const layer = m.isSold ? soldLayer : offLayer;
+    layer.addLayer(m.circle);
+    if (currentZoom >= LABEL_ZOOM) layer.addLayer(m.label);
+    if (m.isSold) sold++; else off++;
+  }
+
+  document.getElementById('cnt-sold').textContent = sold;
+  document.getElementById('cnt-off').textContent  = off;
+  updateCounts();
+}
+
+// ── LABEL VISIBILITY ────────────────────────────────────────────
+function updateLabels() {
+  const show = currentZoom >= LABEL_ZOOM;
+  allMarkers.forEach(m => {
+    if (!m.visible) return;
+    const layer = m.isSold ? soldLayer : offLayer;
+    if (show) { if (!layer.hasLayer(m.label)) layer.addLayer(m.label); }
+    else       { layer.removeLayer(m.label); }
+  });
+}
+
+// ── FILTERS ────────────────────────────────────────────────────
+function applyFilters() {
+  const beds  = parseInt(document.getElementById('f-beds').value)  || 0;
+  const baths = parseInt(document.getElementById('f-baths').value) || 0;
+  const cars  = parseInt(document.getElementById('f-cars').value)  || 0;
+  const minP  = parseInt(document.getElementById('f-min').value)   || 0;
+  const maxP  = parseInt(document.getElementById('f-max').value)   || Infinity;
+  const type  = document.getElementById('f-type').value;
+
+  soldLayer.clearLayers();
+  offLayer.clearLayers();
+
+  allMarkers.forEach(m => {
+    const d = m.data;
+    const p = d.price || 0;
+    const pass =
+      (!beds  || (d.beds  || 0) >= beds)  &&
+      (!baths || (d.baths || 0) >= baths) &&
+      (!cars  || (d.cars  || 0) >= cars)  &&
+      p >= minP && p <= maxP &&
+      (!type  || d.status === type) &&
+      (!activeSuburb || d.suburb === activeSuburb);
+
+    m.visible = pass;
+    if (pass) {
+      const layer = m.isSold ? soldLayer : offLayer;
+      if (m.isSold ? showSold : showOff) {
+        layer.addLayer(m.circle);
+        if (currentZoom >= LABEL_ZOOM) layer.addLayer(m.label);
+      }
+    }
+  });
+  updateCounts();
+}
+
+function resetFilters() {
+  ['f-beds','f-baths','f-cars','f-min','f-max','f-type'].forEach(id =>
+    document.getElementById(id).value = '');
+  activeSuburb = '';
+  document.getElementById('suburb-select').value = '';
+  applyFilters();
+}
+
+function updateCounts() {
+  document.getElementById('cnt-vis').textContent = allMarkers.filter(m=>m.visible).length;
+}
+
+// ── SUBURB DROPDOWN ─────────────────────────────────────────────
+// Build dropdown from actual data suburbs
+function buildSuburbDropdown(properties) {
+  const sel = document.getElementById('suburb-select');
+  // Collect unique suburbs
+  const suburbs = [...new Set(properties.map(p => p.suburb).filter(Boolean))].sort();
+  // Rebuild options
+  sel.innerHTML = '<option value="">All Suburbs</option>';
+  suburbs.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s;
+    sel.appendChild(opt);
+  });
+  // Always add custom at end
+  const custom = document.createElement('option');
+  custom.value = '__custom__';
+  custom.textContent = '+ Custom suburb…';
+  sel.appendChild(custom);
+}
+
+// Compute bounding box centre for a suburb's markers
+function flyToSuburb(suburbName) {
+  const pts = allMarkers.filter(m => m.data.suburb === suburbName);
+  if (!pts.length) return;
+  const lats = pts.map(m => m.data.lat);
+  const lngs = pts.map(m => m.data.lng);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  map.fitBounds([[minLat, minLng],[maxLat, maxLng]], { padding: [50, 50], maxZoom: 16 });
+}
+
+let activeSuburb = ''; // '' means all
+
+function onSuburbChange() {
+  const val = document.getElementById('suburb-select').value;
+
+  if (val === '__custom__') {
+    const name = prompt('Enter suburb name (e.g. Sebastopol):');
+    document.getElementById('suburb-select').value = activeSuburb; // revert select
+    if (!name) return;
+    fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name+', Victoria, Australia')}&format=json&limit=1`)
+      .then(r=>r.json()).then(d => {
+        if (d.length) map.setView([+d[0].lat, +d[0].lon], 14);
+        else alert('Could not find that suburb.');
+      });
+    return;
+  }
+
+  activeSuburb = val;
+  applyFilters(); // suburb filter is baked into applyFilters now
+  if (val) flyToSuburb(val);
+  else {
+    // Zoom to fit all markers
+    const pts = allMarkers.filter(m => m.visible);
+    if (pts.length) {
+      const lats = pts.map(m => m.data.lat);
+      const lngs = pts.map(m => m.data.lng);
+      map.fitBounds([[Math.min(...lats),Math.min(...lngs)],[Math.max(...lats),Math.max(...lngs)]], {padding:[40,40],maxZoom:16});
+    }
+  }
+}
+
+// ── GOOGLE SHEET LOADER ─────────────────────────────────────────
+function parseCSV(text) {
+  const rows = [];
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    const row = []; let inQ = false, cell = '';
+    for (const ch of line) {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { row.push(cell.trim()); cell = ''; }
+      else { cell += ch; }
+    }
+    row.push(cell.trim());
+    rows.push(row);
+  }
+  return rows;
+}
+
+function parseNum(v) {
+  if (v == null) return null;
+  const n = parseInt(String(v).replace(/[^0-9]/g, ''));
+  return isNaN(n) ? null : n;
+}
+
+function csvToProps(text) {
+  const rows = parseCSV(text);
+  if (rows.length < 2) return [];
+  const hdrs = rows[0].map(h => h.toLowerCase().trim()
+    .replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,''));
+
+  const get = (row, ...names) => {
+    for (const n of names) {
+      const i = hdrs.indexOf(n);
+      if (i >= 0 && row[i]) return row[i].trim();
+    }
+    return '';
+  };
+
+  return rows.slice(1).filter(r => r.join('').trim()).map(row => {
+    const statusRaw = get(row,'status').toLowerCase();
+    const isSold    = !statusRaw.includes('off');
+    const priceRaw  = get(row,'price','sale_price','sold_price');
+    const price     = parseNum(priceRaw);
+    const latVal    = parseFloat(get(row,'latitude','lat')) || null;
+    const lngVal    = parseFloat(get(row,'longitude','lng','lon')) || null;
+    const suburb    = get(row,'suburb');
+    const addr      = get(row,'address');
+
+    return {
+      address:    addr,
+      suburb:     suburb,
+      lat:        latVal,
+      lng:        lngVal,
+      price:      price,
+      priceLabel: !isSold ? priceRaw : null,
+      beds:       parseNum(get(row,'beds','bedrooms','bed')),
+      baths:      parseNum(get(row,'baths','bathrooms','bath')),
+      cars:       parseNum(get(row,'cars','garage','car_spaces','car')),
+      land:       parseNum(get(row,'land_size_m2','land_size','land')),
+      type:       get(row,'property_type','type'),
+      date:       get(row,'sold_date','date','sale_date'),
+      status:     isSold ? 'sold' : 'off_market',
+    };
+  }).filter(p => p.address);
+}
+
+async function loadSheet() {
+  const url = document.getElementById('gs-input').value.trim();
+  const statusEl = document.getElementById('gs-status');
+  const btn = document.getElementById('btn-load');
+  btn.disabled = true;
+  statusEl.style.color = 'var(--muted)';
+  statusEl.textContent = '⏳ Loading…';
+
+  try {
+    let text = null;
+
+    // Direct fetch (works for published Google Sheets)
+    try {
+      const r = await fetch(url);
+      if (r.ok) {
+        const t = await r.text();
+        if (t && !t.trim().startsWith('<!')) text = t;
+      }
+    } catch(e) {}
+
+    // CORS proxy fallback
+    if (!text) {
+      try {
+        const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(url));
+        if (r.ok) text = await r.text();
+      } catch(e) {}
+    }
+
+    if (!text) throw new Error('Cannot fetch sheet — check URL and that it is published as CSV.');
+
+    const props = csvToProps(text);
+    if (!props.length) throw new Error('No rows found — check column headers.');
+
+    const withLL = props.filter(p=>p.lat&&p.lng).length;
+    renderMarkers(props);
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = `✅ ${props.length} properties · ${withLL} instant (lat/lng) · ${props.length-withLL} geocoded`;
+
+  } catch(e) {
+    statusEl.style.color = 'var(--sold)';
+    statusEl.textContent = '❌ ' + e.message;
+    // Fall back to embedded data
+    renderMarkers(EMBEDDED_DATA);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── GEOCODING CACHE (for sheet rows missing lat/lng) ────────────
+const GC_CACHE_KEY = 'propmap_gc_v2';
+let gcCache = {};
+try { gcCache = JSON.parse(localStorage.getItem(GC_CACHE_KEY)||'{}'); } catch(e){}
+
+// ── BOOT ────────────────────────────────────────────────────────
+// Load embedded data instantly, then try sheet in background
+renderMarkers(EMBEDDED_DATA);
+document.getElementById('gs-status').textContent = `✅ ${EMBEDDED_DATA.length} properties loaded from spreadsheet`;
+document.getElementById('gs-status').style.color = 'var(--green)';
+
+// Auto-load sheet on open to pick up any updates
+loadSheet();
+</script>
+</body>
+</html>
