@@ -22,6 +22,8 @@
   --muted: #64748b;
   --accent: #f59e0b;
   --green: #10b981;
+  --on: #22c55e;
+  --on-soft: rgba(34,197,94,0.18);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px}
@@ -57,6 +59,7 @@ select.hdr-sel:hover,select.hdr-sel:focus{border-color:var(--accent);outline:non
 .pip{width:10px;height:10px;border-radius:50%;flex-shrink:0}
 .pip.sold{background:var(--sold);box-shadow:0 0 6px rgba(255,68,68,.5)}
 .pip.off{background:var(--off);box-shadow:0 0 6px rgba(59,130,246,.5)}
+.pip.on{background:var(--on);box-shadow:0 0 6px rgba(34,197,94,.5)}
 .hdr-stats{margin-left:auto;display:flex;gap:14px;font-size:0.78rem;color:var(--muted);white-space:nowrap}
 .hdr-stats strong{color:var(--text)}
 
@@ -149,6 +152,7 @@ body{display:flex;flex-direction:column}
 .pu-addr{font-family:'Playfair Display',serif;font-size:0.85rem;line-height:1.4;color:var(--text);margin-bottom:9px}
 .pu-price{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;color:var(--accent);margin-bottom:8px}
 .pu-meta{display:flex;gap:8px;flex-wrap:wrap;font-size:0.67rem;color:var(--muted);border-top:1px solid var(--border);padding-top:8px}
+.pu-badge.on{color:var(--on)}
 .pu-date{font-size:0.62rem;color:var(--muted);margin-top:6px}
 
 /* SETUP GUIDE */
@@ -193,9 +197,13 @@ body{display:flex;flex-direction:column}
   <div class="pill" id="pill-off" onclick="toggleLayer('off')">
     <div class="pip off"></div>Off Market
   </div>
+  <div class="pill" id="pill-on" onclick="toggleLayer('on')">
+    <div class="pip on"></div>On Market
+  </div>
   <div class="hdr-stats">
     <span>🔴 <strong id="cnt-sold">0</strong></span>
     <span>🔵 <strong id="cnt-off">0</strong></span>
+    <span>🟢 <strong id="cnt-on">0</strong></span>
     <span>Showing <strong id="cnt-vis">0</strong></span>
   </div>
 </div>
@@ -251,6 +259,7 @@ body{display:flex;flex-direction:column}
     <option value="">All</option>
     <option value="sold">Sold only</option>
     <option value="off_market">Off Market only</option>
+    <option value="on_market">On Market only</option>
   </select>
   <button id="btn-reset" onclick="resetFilters()">✕ Reset</button>
 </div>
@@ -301,7 +310,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 const soldLayer = L.layerGroup().addTo(map);
 const offLayer  = L.layerGroup().addTo(map);
-let showSold = true, showOff = true;
+const onLayer   = L.layerGroup().addTo(map);
+let showSold = true, showOff = true, showOn = true;
 
 const LABEL_ZOOM = 15;
 let currentZoom = map.getZoom();
@@ -321,10 +331,14 @@ function toggleLayer(type) {
     showSold = !showSold;
     showSold ? map.addLayer(soldLayer) : map.removeLayer(soldLayer);
     document.getElementById('pill-sold').classList.toggle('dim', !showSold);
-  } else {
+  } else if (type === 'off') {
     showOff = !showOff;
     showOff ? map.addLayer(offLayer) : map.removeLayer(offLayer);
     document.getElementById('pill-off').classList.toggle('dim', !showOff);
+  } else {
+    showOn = !showOn;
+    showOn ? map.addLayer(onLayer) : map.removeLayer(onLayer);
+    document.getElementById('pill-on').classList.toggle('dim', !showOn);
   }
   updateCounts();
 }
@@ -341,7 +355,8 @@ function fmtFull(n) {
 // ── MARKER FACTORY ───────────────────────────────────────────────
 function makeMarker(p) {
   const isSold = p.status === 'sold';
-  const color  = isSold ? '#ff4444' : '#3b82f6';
+  const isOn   = p.status === 'on_market';
+  const color  = isSold ? '#ff4444' : isOn ? '#22c55e' : '#3b82f6';
 
   const circle = L.circleMarker([p.lat, p.lng], {
     radius: 8, fillColor: color,
@@ -350,8 +365,8 @@ function makeMarker(p) {
   });
 
   // Popup
-  const badge   = isSold ? 'sold' : 'off';
-  const badgeTxt= isSold ? '● SOLD' : '● OFF MARKET';
+  const badge   = isSold ? 'sold' : isOn ? 'on' : 'off';
+  const badgeTxt= isSold ? '● SOLD' : isOn ? '● ON MARKET' : '● OFF MARKET';
   const priceStr= fmtFull(p.price);
   const meta = [
     p.beds  != null ? `🛏 ${p.beds}`  : null,
@@ -392,19 +407,20 @@ function renderMarkers(properties) {
   allMarkers = [];
 
   buildSuburbDropdown(properties);
-  let sold = 0, off = 0;
+  let sold = 0, off = 0, on = 0;
   for (const p of properties) {
     if (!p.lat || !p.lng) continue;
     const m = makeMarker(p);
     allMarkers.push(m);
-    const layer = m.isSold ? soldLayer : offLayer;
+    const layer = m.isSold ? soldLayer : m.data.status === 'on_market' ? onLayer : offLayer;
     layer.addLayer(m.circle);
     if (currentZoom >= LABEL_ZOOM) layer.addLayer(m.label);
-    if (m.isSold) sold++; else off++;
+    if (m.isSold) sold++; else if (p.status === 'on_market') on++; else off++;
   }
 
   document.getElementById('cnt-sold').textContent = sold;
   document.getElementById('cnt-off').textContent  = off;
+  document.getElementById('cnt-on').textContent   = on;
   updateCounts();
 }
 
@@ -413,7 +429,8 @@ function updateLabels() {
   const show = currentZoom >= LABEL_ZOOM;
   allMarkers.forEach(m => {
     if (!m.visible) return;
-    const layer = m.isSold ? soldLayer : offLayer;
+    const isOn = m.data.status === 'on_market';
+    const layer = m.isSold ? soldLayer : isOn ? onLayer : offLayer;
     if (show) { if (!layer.hasLayer(m.label)) layer.addLayer(m.label); }
     else       { layer.removeLayer(m.label); }
   });
@@ -444,8 +461,10 @@ function applyFilters() {
 
     m.visible = pass;
     if (pass) {
-      const layer = m.isSold ? soldLayer : offLayer;
-      if (m.isSold ? showSold : showOff) {
+      const isOn = m.data.status === 'on_market';
+      const layer = m.isSold ? soldLayer : isOn ? onLayer : offLayer;
+      const layerOn = m.isSold ? showSold : isOn ? showOn : showOff;
+      if (layerOn) {
         layer.addLayer(m.circle);
         if (currentZoom >= LABEL_ZOOM) layer.addLayer(m.label);
       }
@@ -552,6 +571,19 @@ function parseNum(v) {
   return isNaN(n) ? null : n;
 }
 
+// Handles: 730000, "$730,000", "$600k", "$1.2M", "600K"
+function parsePrice(v) {
+  if (v == null || v === '') return null;
+  const s = String(v).trim().replace(/,/g, '');
+  const m = s.match(/^\$?([\d.]+)\s*([kKmM]?)$/);
+  if (!m) return null;
+  const num = parseFloat(m[1]);
+  const suffix = m[2].toLowerCase();
+  if (suffix === 'k') return Math.round(num * 1000);
+  if (suffix === 'm') return Math.round(num * 1000000);
+  return Math.round(num);
+}
+
 function csvToProps(text) {
   const rows = parseCSV(text);
   if (rows.length < 2) return [];
@@ -568,9 +600,10 @@ function csvToProps(text) {
 
   return rows.slice(1).filter(r => r.join('').trim()).map(row => {
     const statusRaw = get(row,'status').toLowerCase();
-    const isSold    = !statusRaw.includes('off');
+    const isSold    = statusRaw.includes('sold') && !statusRaw.includes('recently');
+    const isOnMkt   = statusRaw.includes('on market') || statusRaw.includes('on_market') || statusRaw.includes('for sale') || statusRaw.includes('listed');
     const priceRaw  = get(row,'price','sale_price','sold_price');
-    const price     = parseNum(priceRaw);
+    const price     = parsePrice(priceRaw);
     const latVal    = parseFloat(get(row,'latitude','lat')) || null;
     const lngVal    = parseFloat(get(row,'longitude','lng','lon')) || null;
     const suburb    = get(row,'suburb');
@@ -582,14 +615,14 @@ function csvToProps(text) {
       lat:        latVal,
       lng:        lngVal,
       price:      price,
-      priceLabel: !isSold ? priceRaw : null,
+
       beds:       parseNum(get(row,'beds','bedrooms','bed')),
       baths:      parseNum(get(row,'baths','bathrooms','bath')),
       cars:       parseNum(get(row,'cars','garage','car_spaces','car')),
       land:       parseNum(get(row,'land_size_m2','land_size','land')),
       type:       get(row,'property_type','type'),
       date:       get(row,'sold_date','date','sale_date'),
-      status:     isSold ? 'sold' : 'off_market',
+      status:     isSold ? 'sold' : isOnMkt ? 'on_market' : 'off_market',
     };
   }).filter(p => p.address);
 }
